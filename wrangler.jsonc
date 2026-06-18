@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "chem-paper-finder",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-06-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "routes": [
+    {
+      "pattern": "paper.aryuki.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "APP_ID": "chem-paper-finder",
+    "AUTH_CENTER_URL": "https://accounts.aryuki.com",
+    "ENABLE_QUOTA": "false"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chem-paper-finder-db",
+      "database_id": "d73d1020-8beb-4d64-ab73-55f4b1773a86",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PAPER_BUCKET",
+      "bucket_name": "chem-paper-finder-save"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "LOOKUP_QUEUE",
+        "queue": "chem-paper-finder-lookup"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "chem-paper-finder-lookup",
+        "max_batch_size": 5,
+        "max_batch_timeout": 10
+      }
+    ]
+  }
+}

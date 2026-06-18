@@ -1,0 +1,36 @@
+{
+  "name": "chem-paper-finder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build && wrangler dev --port 8787",
+    "build": "tsc -b && vite build",
+    "preview": "npm run build && wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck": "tsc -b",
+    "cf-types": "wrangler types",
+    "db:local": "wrangler d1 migrations apply chem-paper-finder-db --local",
+    "db:remote": "wrangler d1 migrations apply chem-paper-finder-db --remote"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "hono": "^4.10.8",
+    "lucide-react": "^0.562.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260617.0",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "playwright": "^1.61.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7",
+    "wrangler": "^4.55.0"
+  }
+}

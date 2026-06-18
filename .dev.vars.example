@@ -1,0 +1,5 @@
+CROSSREF_MAILTO=you@example.com
+UNPAYWALL_EMAIL=you@example.com
+OPENALEX_API_KEY=
+APP_SECRET=your-auth-center-app-secret
+APP_USER_AGENT=ChemPaperFinder/1.0 (mailto:you@example.com)
