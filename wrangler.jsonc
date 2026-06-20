@@ -22,7 +22,7 @@
   "vars": {
     "APP_ID": "chem-paper-finder",
     "AUTH_CENTER_URL": "https://accounts.aryuki.com",
-    "ENABLE_QUOTA": "false"
+    "ENABLE_QUOTA": "true"
   },
   "d1_databases": [
     {

@@ -12,11 +12,15 @@ import {
   FileText,
   History,
   Home,
+  Image,
   LogOut,
+  RotateCcw,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
-  Trash2
+  Trash2,
+  UploadCloud
 } from "lucide-react";
 import "./styles.css";
 
@@ -35,9 +39,24 @@ type User = {
   avatar_url?: string;
 };
 
+type QuotaSnapshot = {
+  ok?: boolean;
+  status?: number;
+  message?: string;
+  data?: unknown;
+};
+
+type SiteSettings = {
+  landingBackgroundUrl?: string;
+  landingBackgroundOpacity: number;
+  updatedAt?: string;
+};
+
 type Candidate = {
   id: string;
   doi?: string;
+  preprintDoi?: string;
+  publishedDoi?: string;
   title: string;
   authors: string[];
   journal?: string;
@@ -47,7 +66,7 @@ type Candidate = {
   pages?: string;
   publisher?: string;
   publisherUrl?: string;
-  source: "Crossref" | "OpenAlex";
+  source: string;
   confidence: number;
   matchReason: string;
   isOa: boolean;
@@ -55,6 +74,14 @@ type Candidate = {
   license?: string;
   pdfUrl?: string;
   pdfHostType?: string;
+  pdfSource?: string;
+  pdfVersionType?: string;
+  pdfCandidateId?: string;
+  sourceUrl?: string;
+  sourceGranularity?: string;
+  derivedFrom?: string;
+  fileSize?: number;
+  downloadedAt?: string;
   openPdfR2Key?: string;
   openPdfDownloadUrl?: string;
   citationPdfR2Key?: string;
@@ -140,13 +167,24 @@ const storage = {
 function App() {
   const [config, setConfig] = React.useState<Config | null>(null);
   const [user, setUser] = React.useState<User | null>(storage.user);
+  const [quota, setQuota] = React.useState<QuotaSnapshot | null>(null);
+  const [siteSettings, setSiteSettings] = React.useState<SiteSettings>({ landingBackgroundOpacity: 0.28 });
   const [bootMessage, setBootMessage] = React.useState("正在连接 ChemPaper Finder");
 
   React.useEffect(() => {
     api<Config>("/api/config", { auth: false })
       .then(setConfig)
       .catch(() => setBootMessage("无法读取应用配置，请稍后刷新"));
+    api<{ settings: SiteSettings }>("/api/site-settings", { auth: false })
+      .then((data) => setSiteSettings(data.settings))
+      .catch(() => undefined);
   }, []);
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--landing-bg-image", siteSettings.landingBackgroundUrl ? `url("${siteSettings.landingBackgroundUrl}")` : "none");
+    root.style.setProperty("--landing-bg-opacity", String(siteSettings.landingBackgroundOpacity ?? 0.28));
+  }, [siteSettings]);
 
   React.useEffect(() => {
     if (!config) return;
@@ -154,7 +192,7 @@ function App() {
     const token = params.get("token");
     if (window.location.pathname === "/sso-callback" && token) {
       setBootMessage("正在验证 Auth Center 登录状态");
-      api<{ success: boolean; user: User; token: string }>("/api/sso-callback", {
+      api<{ success: boolean; user: User; token: string; quota?: QuotaSnapshot }>("/api/sso-callback", {
         auth: false,
         method: "POST",
         body: { token }
@@ -163,31 +201,94 @@ function App() {
           storage.token = data.token;
           storage.user = data.user;
           setUser(data.user);
-          window.history.replaceState({}, "", "/");
+          setQuota(data.quota ?? null);
+          const next = sessionStorage.getItem("post_login_path") || "/";
+          sessionStorage.removeItem("post_login_path");
+          window.history.replaceState({}, "", next);
           void track("page_view", data.user.uuid);
         })
         .catch((error) => setBootMessage(error.message));
     }
   }, [config]);
 
+  React.useEffect(() => {
+    if (!config) return;
+    const handleExpired = () => {
+      storage.clear();
+      setUser(null);
+      redirectToAuthCenter(config);
+    };
+    window.addEventListener("auth-expired", handleExpired);
+    return () => window.removeEventListener("auth-expired", handleExpired);
+  }, [config]);
+
+  React.useEffect(() => {
+    if (!config || !storage.token || !storage.user || window.location.pathname === "/sso-callback") return;
+    api<{ success: boolean; user: User; quota?: QuotaSnapshot }>("/api/me")
+      .then((data) => {
+        storage.user = data.user;
+        setUser(data.user);
+        setQuota(data.quota ?? null);
+      })
+      .catch((error) => setBootMessage(error instanceof Error ? error.message : "无法刷新登录与额度信息"));
+  }, [config]);
+
   if (!config) {
-    return <BootScreen message={bootMessage} />;
+    return (
+      <>
+        <GlobalBackground />
+        <BootScreen message={bootMessage} />
+      </>
+    );
   }
 
   if (!user || !storage.token) {
-    return <LoginScreen config={config} message={bootMessage} />;
+    return (
+      <>
+        <GlobalBackground />
+        <LoginScreen config={config} message={bootMessage} />
+      </>
+    );
   }
 
   if (window.location.pathname === "/history") {
-    return <HistoryPage config={config} user={user} />;
+    return (
+      <>
+        <GlobalBackground />
+        <HistoryPage config={config} user={user} />
+      </>
+    );
   }
 
   const historyMatch = window.location.pathname.match(/^\/history\/([^/]+)$/);
   if (historyMatch) {
-    return <HistoryDetailPage config={config} user={user} recordId={historyMatch[1]} />;
+    return (
+      <>
+        <GlobalBackground />
+        <HistoryDetailPage config={config} user={user} recordId={historyMatch[1]} />
+      </>
+    );
   }
 
-  return <Dashboard config={config} user={user} onUserChange={setUser} />;
+  if (window.location.pathname === "/admin") {
+    return (
+      <>
+        <GlobalBackground />
+        <AdminPage config={config} user={user} settings={siteSettings} onSettingsChange={setSiteSettings} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <GlobalBackground />
+      <Dashboard config={config} user={user} quota={quota} onUserChange={setUser} />
+    </>
+  );
+}
+
+function GlobalBackground() {
+  return <div className="global-bg" aria-hidden="true" />;
 }
 
 function BootScreen({ message }: { message: string }) {
@@ -201,8 +302,7 @@ function BootScreen({ message }: { message: string }) {
 
 function LoginScreen({ config, message }: { config: Config; message: string }) {
   const login = () => {
-    const redirect = `${window.location.origin}${config.callbackPath}`;
-    window.location.href = `${config.authCenterUrl}/?client_id=${encodeURIComponent(config.appId)}&redirect=${encodeURIComponent(redirect)}`;
+    redirectToAuthCenter(config);
   };
 
   return (
@@ -223,7 +323,14 @@ function LoginScreen({ config, message }: { config: Config; message: string }) {
   );
 }
 
-function Dashboard({ config, user, onUserChange }: { config: Config; user: User; onUserChange: (user: User | null) => void }) {
+function redirectToAuthCenter(config: Config) {
+  const current = `${window.location.pathname}${window.location.search}`;
+  if (current !== config.callbackPath) sessionStorage.setItem("post_login_path", current || "/");
+  const redirect = `${window.location.origin}${config.callbackPath}`;
+  window.location.href = `${config.authCenterUrl}/?client_id=${encodeURIComponent(config.appId)}&redirect=${encodeURIComponent(redirect)}`;
+}
+
+function Dashboard({ config, user, quota, onUserChange }: { config: Config; user: User; quota: QuotaSnapshot | null; onUserChange: (user: User | null) => void }) {
   const [input, setInput] = React.useState("");
   const [mode, setMode] = React.useState<"auto" | "doi" | "citation" | "fuzzy">("auto");
   const [candidates, setCandidates] = React.useState<Candidate[]>([]);
@@ -346,6 +453,12 @@ function Dashboard({ config, user, onUserChange }: { config: Config; user: User;
           <History size={16} />
           历史
         </a>
+        {isAdminUser(user) && (
+          <a className="secondary-action nav-action compact" href="/admin">
+            <Settings size={16} />
+            Admin
+          </a>
+        )}
         <div className="profile-menu" ref={profileRef}>
           <button type="button" className="avatar-button" onClick={() => setProfileOpen((open) => !open)} title="用户信息">
             <Avatar config={config} user={user} />
@@ -362,6 +475,7 @@ function Dashboard({ config, user, onUserChange }: { config: Config; user: User;
               <dl>
                 <div><dt>UUID</dt><dd>{user.uuid}</dd></div>
                 <div><dt>身份</dt><dd>{user.role || "user"}</dd></div>
+                <div><dt>额度</dt><dd>{quotaSummary(quota)}</dd></div>
               </dl>
               <div className="profile-actions">
                 <a className="secondary-action" href={`${config.authCenterUrl}/${user.uuid}`}>
@@ -462,6 +576,153 @@ function Dashboard({ config, user, onUserChange }: { config: Config; user: User;
                 <small>{item.candidates[0]?.title || item.message || "无候选"}</small>
               </div>
             ))}
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function AdminPage({ user, settings, onSettingsChange }: { config: Config; user: User; settings: SiteSettings; onSettingsChange: (settings: SiteSettings) => void }) {
+  const [localOpacity, setLocalOpacity] = React.useState(settings.landingBackgroundOpacity ?? 0.28);
+  const [notice, setNotice] = React.useState("");
+  const [busy, setBusy] = React.useState("");
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    setLocalOpacity(settings.landingBackgroundOpacity ?? 0.28);
+  }, [settings.landingBackgroundOpacity]);
+
+  if (!isAdminUser(user)) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <div className="brand-row">
+            <div className="brand-mark"><ShieldCheck size={24} /></div>
+            <div>
+              <strong>Admin Dash</strong>
+              <span>权限校验</span>
+            </div>
+          </div>
+          <a className="secondary-action nav-action" href="/"><Home size={16} /> 返回主页</a>
+        </header>
+        <section className="workspace admin-workspace">
+          <section className="admin-panel">
+            <EmptyState text="当前账号没有管理权限。请使用 Auth Center 中具备 admin / owner / super_admin 身份的账号登录。" />
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBusy("upload");
+    try {
+      const data = await uploadLandingBackground(file, localOpacity);
+      onSettingsChange(data.settings);
+      setNotice("落地页背景已上传并生效。");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "上传失败");
+    } finally {
+      setBusy("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const saveOpacity = async () => {
+    setBusy("opacity");
+    try {
+      const data = await api<{ settings: SiteSettings }>("/api/admin/site-settings", {
+        method: "PATCH",
+        body: { landingBackgroundOpacity: localOpacity }
+      });
+      onSettingsChange(data.settings);
+      setNotice("背景透明度已更新。");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "透明度保存失败");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const reset = async () => {
+    setBusy("delete");
+    try {
+      const data = await api<{ settings: SiteSettings }>("/api/admin/landing-background", { method: "DELETE" });
+      onSettingsChange(data.settings);
+      setNotice("已删除自定义背景并恢复默认。");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "删除失败");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand-row">
+          <div className="brand-mark"><Settings size={24} /></div>
+          <div>
+            <strong>Admin Dash</strong>
+            <span>Landing visual controls</span>
+          </div>
+        </div>
+        <a className="secondary-action nav-action" href="/"><Home size={16} /> 返回主页</a>
+      </header>
+
+      <section className="workspace admin-workspace">
+        <section className="admin-hero">
+          <p className="eyebrow"><Image size={15} /> 页面风格</p>
+          <h1>管理落地页背景与视觉透明度</h1>
+          <p>上传一张干净的大图作为背景，调节透明度，让工作台保持简约、清晰，同时有足够的品牌感。</p>
+        </section>
+
+        {notice && <div className="notice">{notice}</div>}
+
+        <section className="admin-layout">
+          <div className="admin-preview">
+            <div className="preview-surface">
+              <div className="preview-copy">
+                <span>ChemPaper Finder</span>
+                <strong>从 DOI、题录或模糊线索找到可信文献</strong>
+                <small>当前透明度 {Math.round(localOpacity * 100)}%</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-panel">
+            <div className="section-title">
+              <h2>背景设置</h2>
+              <span>{settings.landingBackgroundUrl ? "自定义图片已启用" : "默认背景"}</span>
+            </div>
+            <div className="admin-controls">
+              <label className="upload-drop">
+                <UploadCloud size={22} />
+                <span>{busy === "upload" ? "上传中" : "上传背景图片"}</span>
+                <small>JPG、PNG、WebP、GIF，最大 5MB</small>
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={upload} disabled={Boolean(busy)} />
+              </label>
+
+              <label className="range-field">
+                <span>背景透明度</span>
+                <input type="range" min="0" max="0.82" step="0.01" value={localOpacity} onChange={(event) => setLocalOpacity(Number(event.target.value))} />
+                <strong>{Math.round(localOpacity * 100)}%</strong>
+              </label>
+
+              <div className="admin-actions">
+                <button type="button" className="primary-action" onClick={saveOpacity} disabled={busy === "opacity"}>
+                  <CheckCircle2 size={17} />
+                  {busy === "opacity" ? "保存中" : "保存透明度"}
+                </button>
+                <button type="button" className="secondary-action danger-action" onClick={reset} disabled={busy === "delete" || !settings.landingBackgroundUrl}>
+                  <RotateCcw size={17} />
+                  恢复默认
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       </section>
@@ -642,7 +903,7 @@ function HistoryCandidateDetail({ candidate, setNotice }: { candidate: Candidate
     try {
       const data = await api<{ r2Key: string; downloadUrl: string }>("/api/papers/export-citation-pdf", {
         method: "POST",
-        body: { paperId: candidate.id }
+        body: { paperId: candidate.id, candidateId: candidate.pdfCandidateId }
       });
       setFiles((current) => ({ ...current, citationKey: data.r2Key, citationUrl: data.downloadUrl }));
       setNotice("题录 PDF 已生成并保存到 R2。");
@@ -703,8 +964,15 @@ function HistoryCandidateDetail({ candidate, setNotice }: { candidate: Candidate
         <div><dt>时间</dt><dd>{candidate.year || "未知"}</dd></div>
         <div><dt>期刊</dt><dd>{candidate.journal || "未知"}</dd></div>
         <div><dt>卷期页</dt><dd>{[candidate.volume, candidate.issue, candidate.pages].filter(Boolean).join(" / ") || "未知"}</dd></div>
+        {candidate.preprintDoi && <div><dt>预印本 DOI</dt><dd>{candidate.preprintDoi}</dd></div>}
+        {candidate.publishedDoi && <div><dt>正式论文 DOI</dt><dd>{candidate.publishedDoi}</dd></div>}
         <div><dt>链接</dt><dd>{candidate.publisherUrl || candidate.doi ? <a href={candidate.publisherUrl || `https://doi.org/${candidate.doi}`} target="_blank" rel="noreferrer">打开来源</a> : "未知"}</dd></div>
         <div><dt>开放 PDF</dt><dd>{files.openUrl ? "已保存到 R2" : candidate.isOa ? "可获取，尚未保存或保存失败" : "未找到合法开放 PDF"}</dd></div>
+        <div><dt>PDF 来源</dt><dd>{[candidate.pdfSource, candidate.pdfHostType].filter(Boolean).join(" · ") || "无"}</dd></div>
+        <div><dt>版本类型</dt><dd>{versionLabel(candidate.pdfVersionType)}</dd></div>
+        <div><dt>来源粒度</dt><dd>{granularityLabel(candidate.sourceGranularity, candidate.derivedFrom)}</dd></div>
+        <div><dt>许可证</dt><dd>{candidate.license || "未注明"}</dd></div>
+        <div><dt>保存信息</dt><dd>{candidate.fileSize ? `${formatBytes(candidate.fileSize)} · ${formatDate(candidate.downloadedAt)}` : "尚未保存开放 PDF"}</dd></div>
         <div><dt>题录 PDF</dt><dd>{files.citationUrl ? "已保存到 R2" : candidate.isOa ? "可手动生成" : "正在自动生成或尚未生成"}</dd></div>
       </dl>
       <div className="detail-actions">
@@ -798,7 +1066,7 @@ function DetailPanel({ candidate, setNotice }: { candidate: Candidate | null; se
     try {
       const data = await api<{ r2Key: string; downloadUrl: string }>("/api/papers/export-citation-pdf", {
         method: "POST",
-        body: { paperId: candidate.id }
+        body: { paperId: candidate.id, candidateId: candidate.pdfCandidateId }
       });
       setFiles((current) => ({ ...current, citationKey: data.r2Key, citationUrl: data.downloadUrl }));
       setNotice("题录 PDF 已生成并保存到 R2。");
@@ -858,8 +1126,13 @@ function DetailPanel({ candidate, setNotice }: { candidate: Candidate | null; se
         <div><dt>作者</dt><dd>{candidate.authors.join(", ") || "未知"}</dd></div>
         <div><dt>期刊</dt><dd>{candidate.journal || "未知"}</dd></div>
         <div><dt>年份 / 卷期页</dt><dd>{[candidate.year, candidate.volume, candidate.issue, candidate.pages].filter(Boolean).join(" / ") || "未知"}</dd></div>
+        {candidate.preprintDoi && <div><dt>预印本 DOI</dt><dd>{candidate.preprintDoi}</dd></div>}
+        {candidate.publishedDoi && <div><dt>正式论文 DOI</dt><dd>{candidate.publishedDoi}</dd></div>}
         <div><dt>OA 状态</dt><dd>{candidate.isOa ? `${candidate.oaStatus || "open"} · ${candidate.license || "license 未注明"}` : "未找到合法开放 PDF"}</dd></div>
-        <div><dt>PDF 来源</dt><dd>{candidate.pdfHostType || (candidate.isOa ? "Unpaywall 已返回开放来源" : "无")}</dd></div>
+        <div><dt>PDF 来源</dt><dd>{[candidate.pdfSource, candidate.pdfHostType].filter(Boolean).join(" · ") || (candidate.isOa ? "已记录开放来源" : "无")}</dd></div>
+        <div><dt>版本类型</dt><dd>{versionLabel(candidate.pdfVersionType)}</dd></div>
+        <div><dt>来源粒度</dt><dd>{granularityLabel(candidate.sourceGranularity, candidate.derivedFrom)}</dd></div>
+        <div><dt>保存信息</dt><dd>{candidate.fileSize ? `${formatBytes(candidate.fileSize)} · ${formatDate(candidate.downloadedAt)}` : "尚未保存开放 PDF"}</dd></div>
       </dl>
       <div className="detail-actions">
         {candidate.isOa && (
@@ -1019,15 +1292,41 @@ async function api<T = unknown>(path: string, options: { method?: string; body?:
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
-  if (!res.ok) throw new Error(await readError(res));
+  if (!res.ok) {
+    if (options.auth !== false && (res.status === 401 || res.status === 403)) {
+      window.dispatchEvent(new Event("auth-expired"));
+    }
+    throw new Error(await readError(res));
+  }
   return res.json() as Promise<T>;
+}
+
+async function uploadLandingBackground(file: File, opacity: number) {
+  const form = new FormData();
+  form.set("file", file);
+  form.set("opacity", String(opacity));
+  const headers: Record<string, string> = {};
+  if (storage.token) headers.Authorization = `Bearer ${storage.token}`;
+  const res = await fetch("/api/admin/landing-background", {
+    method: "POST",
+    headers,
+    body: form
+  });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) window.dispatchEvent(new Event("auth-expired"));
+    throw new Error(await readError(res));
+  }
+  return res.json() as Promise<{ settings: SiteSettings }>;
 }
 
 async function downloadFile(path: string, fallbackFilename: string) {
   const headers: Record<string, string> = {};
   if (storage.token) headers.Authorization = `Bearer ${storage.token}`;
   const res = await fetch(path, { headers });
-  if (!res.ok) throw new Error(await readError(res));
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) window.dispatchEvent(new Event("auth-expired"));
+    throw new Error(await readError(res));
+  }
 
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -1043,7 +1342,7 @@ async function downloadFile(path: string, fallbackFilename: string) {
 
 function readFilename(disposition: string | null) {
   if (!disposition) return "";
-  const utf8 = disposition.match(/filename\\*=UTF-8''([^;]+)/i);
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i);
   if (utf8?.[1]) return decodeURIComponent(utf8[1]);
   const ascii = disposition.match(/filename=\"?([^\";]+)\"?/i);
   return ascii?.[1] ?? "";
@@ -1066,6 +1365,49 @@ function fileNameForCandidate(candidate: Candidate, kind: "open" | "citation") {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "paper";
   return `${base}-${kind}.pdf`;
+}
+
+function versionLabel(value?: string) {
+  const labels: Record<string, string> = {
+    publisher_version_of_record: "出版社正式开放版",
+    author_accepted_manuscript: "作者接受稿",
+    preprint: "预印本",
+    repository_copy: "机构仓储版本",
+    unknown_version: "版本未知"
+  };
+  return labels[value || ""] || "版本未知";
+}
+
+function granularityLabel(value?: string, derivedFrom?: string) {
+  if (value === "volume_scan") return `整卷扫描${derivedFrom ? ` · ${derivedFrom}` : ""}`;
+  if (value === "derived_from_volume_scan") return `由整卷扫描裁剪${derivedFrom ? ` · ${derivedFrom}` : ""}`;
+  return derivedFrom || "单篇或未知";
+}
+
+function quotaSummary(quota: QuotaSnapshot | null) {
+  if (!quota) return "正在同步";
+  if (quota.ok === false) return quota.message || "额度未授权";
+  const data = quota.data && typeof quota.data === "object" ? quota.data as Record<string, unknown> : {};
+  const remaining = data.remaining_tokens ?? data.remainingTokens;
+  const quotaValue = data.quota && typeof data.quota === "object" ? data.quota as Record<string, unknown> : {};
+  const rpm = quotaValue.rpm ?? data.rpm;
+  const rpd = quotaValue.rpd ?? data.rpd;
+  const parts = [
+    remaining !== undefined ? `剩余 ${remaining}` : "",
+    rpm !== undefined ? `RPM ${rpm}` : "",
+    rpd !== undefined ? `RPD ${rpd}` : ""
+  ].filter(Boolean);
+  return parts.join(" · ") || "已同步";
+}
+
+function isAdminUser(user: User) {
+  return /^(admin|owner|super_admin|root)$/i.test(user.role || "");
+}
+
+function formatBytes(value?: number) {
+  if (!value) return "未知大小";
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function buildBib(paper: Candidate) {

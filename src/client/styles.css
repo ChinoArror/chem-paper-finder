@@ -3,7 +3,7 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #f4f0e8;
+  background: #f6f7f8;
   color: #15171a;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -18,10 +18,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    linear-gradient(135deg, rgba(30, 91, 110, 0.18), transparent 34%),
-    linear-gradient(45deg, rgba(181, 67, 47, 0.12), transparent 36%),
-    #f4f0e8;
+  background: #f6f7f8;
 }
 
 button,
@@ -33,6 +30,13 @@ select {
 button {
   border: 0;
   cursor: pointer;
+}
+
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:disabled {
@@ -68,6 +72,37 @@ textarea:focus {
   padding: 28px;
 }
 
+.global-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(28, 108, 128, 0.12), transparent 32%),
+    linear-gradient(45deg, rgba(120, 75, 155, 0.08), transparent 36%),
+    #f6f7f8;
+}
+
+.global-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--landing-bg-image);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--landing-bg-opacity, 0.28);
+  filter: saturate(0.92);
+}
+
+.global-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(246, 247, 248, 0.56), rgba(246, 247, 248, 0.94) 64%),
+    rgba(246, 247, 248, 0.16);
+}
+
 .boot {
   color: #42515a;
 }
@@ -76,12 +111,10 @@ textarea:focus {
   width: min(860px, 100%);
   padding: 46px;
   border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 249, 248, 0.9)),
-    url("data:image/svg+xml,%3Csvg width='180' height='180' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%231b7388' stroke-opacity='.12'%3E%3Cpath d='M36 68h108M90 14v152M48 42l84 96M132 42l-84 96'/%3E%3Ccircle cx='90' cy='90' r='48'/%3E%3C/g%3E%3C/svg%3E");
-  background-position: right 22px bottom 20px;
-  background-repeat: no-repeat;
-  box-shadow: 0 28px 80px rgba(28, 34, 38, 0.16);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(28, 34, 38, 0.1);
+  box-shadow: 0 28px 80px rgba(28, 34, 38, 0.14);
 }
 
 .login-panel h1 {
@@ -112,7 +145,7 @@ textarea:focus {
   justify-content: space-between;
   gap: 18px;
   padding: 18px clamp(18px, 4vw, 42px);
-  background: rgba(250, 248, 243, 0.9);
+  background: rgba(255, 255, 255, 0.76);
   backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(28, 34, 38, 0.1);
 }
@@ -163,6 +196,13 @@ textarea:focus {
   border: 1px solid rgba(28, 34, 38, 0.08);
   box-shadow: 0 10px 24px rgba(28, 34, 38, 0.12);
   overflow: hidden;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.avatar-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(27, 115, 136, 0.38);
+  box-shadow: 0 14px 30px rgba(28, 34, 38, 0.16);
 }
 
 .avatar-frame {
@@ -282,6 +322,10 @@ textarea:focus {
   margin-left: auto;
 }
 
+.nav-action.compact {
+  margin-left: 0;
+}
+
 .profile-actions .secondary-action,
 .profile-actions .icon-button.labeled,
 .profile-actions a,
@@ -342,11 +386,15 @@ textarea:focus {
 .search-tool,
 .results-panel,
 .detail-panel,
-.batch-panel {
+.batch-panel,
+.admin-panel,
+.admin-preview,
+.admin-hero {
   border: 1px solid rgba(28, 34, 38, 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 20px 60px rgba(28, 34, 38, 0.1);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 52px rgba(28, 34, 38, 0.09);
+  backdrop-filter: blur(18px);
 }
 
 .search-tool {
@@ -399,10 +447,17 @@ textarea:focus {
   font-weight: 800;
   white-space: nowrap;
   text-decoration: none;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
 }
 
 .primary-action {
   padding: 0 18px;
+  border: 1px solid rgba(21, 59, 75, 0.08);
   background: #153b4b;
   color: #fff;
   box-shadow: 0 12px 26px rgba(21, 59, 75, 0.24);
@@ -412,8 +467,29 @@ textarea:focus {
 .select-button,
 .icon-button {
   padding: 0 14px;
+  border: 1px solid rgba(28, 34, 38, 0.08);
   background: #edf3f1;
   color: #173d4d;
+}
+
+.primary-action:hover,
+.secondary-action:hover,
+.select-button:hover,
+.icon-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-action:hover {
+  background: #102f3d;
+  box-shadow: 0 16px 34px rgba(21, 59, 75, 0.28);
+}
+
+.secondary-action:hover,
+.select-button:hover,
+.icon-button:hover {
+  border-color: rgba(27, 115, 136, 0.34);
+  background: #f7fbfa;
+  box-shadow: 0 0 0 4px rgba(27, 115, 136, 0.08);
 }
 
 .danger-action {
@@ -481,7 +557,7 @@ textarea:focus {
   padding: 16px;
   border-radius: 8px;
   border: 1px solid rgba(28, 34, 38, 0.1);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.9);
   transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -492,6 +568,8 @@ textarea:focus {
 
 .result-card:hover {
   transform: translateY(-1px);
+  border-color: rgba(27, 115, 136, 0.26);
+  box-shadow: 0 12px 30px rgba(28, 34, 38, 0.08);
 }
 
 .result-head,
@@ -791,10 +869,153 @@ textarea:focus {
   color: #9b3d2c;
 }
 
+.admin-workspace {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-hero {
+  padding: clamp(24px, 4vw, 38px);
+}
+
+.admin-hero h1 {
+  max-width: 860px;
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.admin-hero p:last-child {
+  max-width: 700px;
+  margin: 14px 0 0;
+  color: #5f6d77;
+  line-height: 1.65;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.08fr) minmax(320px, 0.92fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-preview,
+.admin-panel {
+  padding: 18px;
+}
+
+.preview-surface {
+  min-height: 430px;
+  display: grid;
+  align-items: end;
+  padding: 24px;
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(15, 25, 31, 0.08), rgba(15, 25, 31, 0.58)),
+    var(--landing-bg-image),
+    linear-gradient(135deg, #dce9ec, #f8f6f0 48%, #eee7f4);
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 1px rgba(28, 34, 38, 0.08);
+}
+
+.preview-copy {
+  max-width: 520px;
+  display: grid;
+  gap: 8px;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.22);
+}
+
+.preview-copy span,
+.preview-copy small {
+  font-weight: 800;
+}
+
+.preview-copy strong {
+  font-size: clamp(1.5rem, 3vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.admin-controls {
+  display: grid;
+  gap: 16px;
+}
+
+.upload-drop {
+  position: relative;
+  min-height: 174px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 22px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px dashed rgba(27, 115, 136, 0.38);
+  background: rgba(237, 243, 241, 0.62);
+  color: #173d4d;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.upload-drop:hover {
+  transform: translateY(-1px);
+  border-color: rgba(27, 115, 136, 0.72);
+  background: #f7fbfa;
+  box-shadow: 0 0 0 4px rgba(27, 115, 136, 0.08);
+}
+
+.upload-drop span {
+  font-weight: 850;
+}
+
+.upload-drop small {
+  color: #6d7881;
+}
+
+.upload-drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.range-field {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) minmax(140px, 1fr) 54px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(28, 34, 38, 0.08);
+}
+
+.range-field span,
+.range-field strong {
+  color: #21313a;
+  font-weight: 800;
+}
+
+.range-field input[type="range"] {
+  width: 100%;
+  accent-color: #1b7388;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @media (max-width: 980px) {
   .search-band,
   .content-grid,
-  .batch-layout {
+  .batch-layout,
+  .admin-layout {
     grid-template-columns: 1fr;
   }
 
@@ -844,7 +1065,8 @@ textarea:focus {
   }
 
   .detail-panel dl div,
-  .batch-row {
+  .batch-row,
+  .range-field {
     grid-template-columns: 1fr;
   }
 
@@ -863,5 +1085,10 @@ textarea:focus {
   .nav-action {
     width: auto;
     margin-left: 0;
+  }
+
+  .admin-actions .primary-action,
+  .admin-actions .secondary-action {
+    width: 100%;
   }
 }
