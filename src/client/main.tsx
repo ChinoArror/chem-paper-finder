@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import * as React from "react";
 import {
   ArrowRight,
+  Bell,
   BookOpen,
   CheckCircle2,
   Copy,
@@ -14,13 +15,17 @@ import {
   Home,
   Image,
   LogOut,
+  Menu,
+  Moon,
   RotateCcw,
   Search,
   Settings,
   ShieldCheck,
   Sparkles,
+  Sun,
   Trash2,
-  UploadCloud
+  UploadCloud,
+  X
 } from "lucide-react";
 import "./styles.css";
 
@@ -169,6 +174,7 @@ function App() {
   const [user, setUser] = React.useState<User | null>(storage.user);
   const [quota, setQuota] = React.useState<QuotaSnapshot | null>(null);
   const [siteSettings, setSiteSettings] = React.useState<SiteSettings>({ landingBackgroundOpacity: 0.28 });
+  const [theme, setTheme] = React.useState(() => localStorage.getItem("theme") || "light");
   const [bootMessage, setBootMessage] = React.useState("正在连接 ChemPaper Finder");
 
   React.useEffect(() => {
@@ -185,6 +191,11 @@ function App() {
     root.style.setProperty("--landing-bg-image", siteSettings.landingBackgroundUrl ? `url("${siteSettings.landingBackgroundUrl}")` : "none");
     root.style.setProperty("--landing-bg-opacity", String(siteSettings.landingBackgroundOpacity ?? 0.28));
   }, [siteSettings]);
+
+  React.useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   React.useEffect(() => {
     if (!config) return;
@@ -255,7 +266,9 @@ function App() {
     return (
       <>
         <GlobalBackground />
-        <HistoryPage config={config} user={user} />
+        <AppFrame config={config} user={user} quota={quota} page="history" title="查询历史" subtitle="按时间顺序查看、打开或删除检索记录" theme={theme} onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")} onUserChange={setUser}>
+          <HistoryPage config={config} user={user} />
+        </AppFrame>
       </>
     );
   }
@@ -265,7 +278,9 @@ function App() {
     return (
       <>
         <GlobalBackground />
-        <HistoryDetailPage config={config} user={user} recordId={historyMatch[1]} />
+        <AppFrame config={config} user={user} quota={quota} page="history" title="历史详情" subtitle={`#${historyMatch[1]}`} theme={theme} onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")} onUserChange={setUser}>
+          <HistoryDetailPage config={config} user={user} recordId={historyMatch[1]} />
+        </AppFrame>
       </>
     );
   }
@@ -274,7 +289,9 @@ function App() {
     return (
       <>
         <GlobalBackground />
-        <AdminPage config={config} user={user} settings={siteSettings} onSettingsChange={setSiteSettings} />
+        <AppFrame config={config} user={user} quota={quota} page="admin" title="Admin Dash" subtitle="背景与透明度" theme={theme} onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")} onUserChange={setUser}>
+          <AdminPage config={config} user={user} settings={siteSettings} onSettingsChange={setSiteSettings} />
+        </AppFrame>
       </>
     );
   }
@@ -282,13 +299,170 @@ function App() {
   return (
     <>
       <GlobalBackground />
-      <Dashboard config={config} user={user} quota={quota} onUserChange={setUser} />
+      <AppFrame config={config} user={user} quota={quota} page="home" title="文献检索" subtitle="检索、确认、保存" theme={theme} onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")} onUserChange={setUser}>
+        <Dashboard config={config} user={user} quota={quota} onUserChange={setUser} />
+      </AppFrame>
     </>
   );
 }
 
 function GlobalBackground() {
   return <div className="global-bg" aria-hidden="true" />;
+}
+
+function AppFrame({
+  config,
+  user,
+  quota,
+  page,
+  title,
+  subtitle,
+  theme,
+  onThemeToggle,
+  onUserChange,
+  children
+}: {
+  config: Config;
+  user: User;
+  quota: QuotaSnapshot | null;
+  page: "home" | "history" | "admin";
+  title: string;
+  subtitle: string;
+  theme: string;
+  onThemeToggle: () => void;
+  onUserChange: (user: User | null) => void;
+  children: React.ReactNode;
+}) {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const profileRef = React.useRef<HTMLDivElement | null>(null);
+  const admin = isAdminUser(user);
+
+  React.useEffect(() => {
+    if (!profileOpen) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    return () => document.removeEventListener("mousedown", closeOnOutside);
+  }, [profileOpen]);
+
+  const signOut = async () => {
+    await api("/api/signout", { method: "POST" }).catch(() => undefined);
+    storage.clear();
+    onUserChange(null);
+    window.location.href = `${config.authCenterUrl}/logout?redirect=${encodeURIComponent(window.location.origin)}`;
+  };
+
+  const navGroups = [
+    {
+      label: "工作区",
+      items: [
+        { id: "home", href: "/", icon: <Search size={17} />, label: "文献检索" },
+        { id: "history", href: "/history", icon: <History size={17} />, label: "查询历史" }
+      ]
+    },
+    {
+      label: "管理",
+      items: admin ? [{ id: "admin", href: "/admin", icon: <Settings size={17} />, label: "Admin Dash" }] : []
+    }
+  ];
+
+  const sidebar = (
+    <aside className="sidebar" aria-label="主导航">
+      <div className="sidebar-brand">
+        <div className="brand-mark"><BookOpen size={22} /></div>
+        <div>
+          <strong>ChemPaper</strong>
+          <span>Finder</span>
+        </div>
+      </div>
+      <nav className="sidebar-nav">
+        {navGroups.map((group) => group.items.length > 0 && (
+          <div className="nav-group" key={group.label}>
+            <span className="nav-group-label">{group.label}</span>
+            {group.items.map((item) => (
+              <a key={item.id} className={`nav-item ${page === item.id ? "active" : ""}`} href={item.href}>
+                {item.icon}
+                <span>{item.label}</span>
+              </a>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div className="sidebar-footer">
+        <span>额度</span>
+        <strong>{quotaSummary(quota)}</strong>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="app-layout">
+      {sidebar}
+      <div className={`mobile-drawer ${sidebarOpen ? "open" : ""}`}>
+        <button type="button" className="drawer-backdrop" aria-label="关闭菜单" onClick={() => setSidebarOpen(false)} />
+        <div className="drawer-panel">
+          <button type="button" className="icon-button ghost drawer-close" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
+            <X size={18} />
+          </button>
+          {sidebar}
+        </div>
+      </div>
+
+      <div className="app-main">
+        <header className="app-header">
+          <button type="button" className="icon-button ghost menu-button" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
+            <Menu size={19} />
+          </button>
+          <div className="page-heading">
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
+          <div className="header-actions">
+            <button type="button" className="icon-button ghost" onClick={onThemeToggle} title={theme === "dark" ? "切换浅色模式" : "切换暗色模式"}>
+              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+            <button type="button" className="icon-button ghost" disabled title="暂无通知">
+              <Bell size={17} />
+            </button>
+            <div className="profile-menu" ref={profileRef}>
+              <button type="button" className="avatar-button" onClick={() => setProfileOpen((open) => !open)} title="用户信息">
+                <Avatar config={config} user={user} />
+              </button>
+              {profileOpen && (
+                <div className="profile-popover">
+                  <div className="profile-head">
+                    <Avatar config={config} user={user} />
+                    <div>
+                      <strong>{user.name || user.username || "已登录用户"}</strong>
+                      <span>{user.email || user.username || "Auth Center 用户"}</span>
+                    </div>
+                  </div>
+                  <dl>
+                    <div><dt>UUID</dt><dd>{user.uuid}</dd></div>
+                    <div><dt>身份</dt><dd>{user.role || "user"}</dd></div>
+                    <div><dt>额度</dt><dd>{quotaSummary(quota)}</dd></div>
+                  </dl>
+                  <div className="profile-actions">
+                    <a className="secondary-action" href={`${config.authCenterUrl}/${user.uuid}`}>
+                      <ExternalLink size={16} />
+                      用户详情
+                    </a>
+                    <button type="button" className="icon-button labeled" onClick={signOut}>
+                      <LogOut size={16} />
+                      退出
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+        <div className="app-content">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 function BootScreen({ message }: { message: string }) {
@@ -312,8 +486,8 @@ function LoginScreen({ config, message }: { config: Config; message: string }) {
           <div className="brand-mark"><BookOpen size={26} /></div>
           <span>ChemPaper Finder</span>
         </div>
-        <h1>查找化学文献，下载合法开放 PDF</h1>
-        <p>{message === "正在连接 ChemPaper Finder" ? "请通过 Auth Center 登录后使用检索、下载和导出功能。" : message}</p>
+        <h1>化学文献检索</h1>
+        <p>{message === "正在连接 ChemPaper Finder" ? "登录后开始使用。" : message}</p>
         <button type="button" className="primary-action" onClick={login}>
           <ShieldCheck size={18} />
           使用 Auth Center 登录
@@ -495,14 +669,14 @@ function Dashboard({ config, user, quota, onUserChange }: { config: Config; user
       <section className="workspace">
         <section className="search-band">
           <div className="search-copy">
-            <p className="eyebrow"><ShieldCheck size={15} /> 只下载合法开放获取 PDF，不绕过付费墙</p>
-            <h1>从 DOI、题录或模糊线索找到可信文献</h1>
+            <p className="eyebrow"><ShieldCheck size={15} /> 合法开放 PDF</p>
+            <h1>检索化学文献</h1>
           </div>
           <div className="search-tool">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="例如：10.1021/acs.joc.xxxxxxx&#10;或 J. Am. Chem. Soc. 2020, 142, 15, 6789-6798"
+              placeholder="DOI、题录、作者、期刊或页码"
             />
             <div className="tool-row">
               <div className="segmented" aria-label="输入模式">
@@ -525,6 +699,21 @@ function Dashboard({ config, user, quota, onUserChange }: { config: Config; user
 
         {notice && <div className="notice">{notice}</div>}
 
+        <section className="stats-grid" aria-label="当前检索状态">
+          <div className="stat-card">
+            <span>候选结果</span>
+            <strong>{candidates.length}</strong>
+          </div>
+          <div className="stat-card">
+            <span>开放 PDF</span>
+            <strong>{candidates.filter((candidate) => candidate.isOa).length}</strong>
+          </div>
+          <div className="stat-card">
+            <span>批量结果</span>
+            <strong>{batchItems.length}</strong>
+          </div>
+        </section>
+
         <section className="content-grid">
           <section className="results-panel">
             <div className="section-title">
@@ -532,6 +721,7 @@ function Dashboard({ config, user, quota, onUserChange }: { config: Config; user
               <span>{candidates.length ? `${candidates.length} 条` : "等待检索"}</span>
             </div>
             <div className="result-list">
+              {busy === "lookup" && <LoadingSkeleton rows={3} />}
               {candidates.map((candidate) => (
                 <ResultCard
                   key={candidate.id}
@@ -540,7 +730,7 @@ function Dashboard({ config, user, quota, onUserChange }: { config: Config; user
                   onSelect={() => setSelected(candidate)}
                 />
               ))}
-              {!candidates.length && <EmptyState text="输入 DOI 或题录后，这里会显示来自 Crossref / OpenAlex / Unpaywall 的实时结果。" />}
+              {!candidates.length && busy !== "lookup" && <EmptyState text="输入线索后显示候选结果。" />}
             </div>
           </section>
 
@@ -550,13 +740,13 @@ function Dashboard({ config, user, quota, onUserChange }: { config: Config; user
         <section className="batch-panel">
           <div className="section-title">
             <h2>批量任务</h2>
-            <span>最多 20 行同步处理</span>
+            <span>最多 20 行</span>
           </div>
           <div className="batch-layout">
             <textarea
               value={batchInput}
               onChange={(event) => setBatchInput(event.target.value)}
-              placeholder="每行一条参考文献或 DOI"
+              placeholder="每行一条 DOI 或题录"
             />
             <div className="batch-actions">
               <button type="button" className="secondary-action" onClick={runBatch} disabled={busy === "batch"}>
@@ -608,7 +798,7 @@ function AdminPage({ user, settings, onSettingsChange }: { config: Config; user:
         </header>
         <section className="workspace admin-workspace">
           <section className="admin-panel">
-            <EmptyState text="当前账号没有管理权限。请使用 Auth Center 中具备 admin / owner / super_admin 身份的账号登录。" />
+            <EmptyState text="当前账号无管理权限。" />
           </section>
         </section>
       </main>
@@ -648,6 +838,7 @@ function AdminPage({ user, settings, onSettingsChange }: { config: Config; user:
   };
 
   const reset = async () => {
+    if (!window.confirm("确定删除自定义背景并恢复默认吗？")) return;
     setBusy("delete");
     try {
       const data = await api<{ settings: SiteSettings }>("/api/admin/landing-background", { method: "DELETE" });
@@ -676,23 +867,13 @@ function AdminPage({ user, settings, onSettingsChange }: { config: Config; user:
       <section className="workspace admin-workspace">
         <section className="admin-hero">
           <p className="eyebrow"><Image size={15} /> 页面风格</p>
-          <h1>管理落地页背景与视觉透明度</h1>
-          <p>上传一张干净的大图作为背景，调节透明度，让工作台保持简约、清晰，同时有足够的品牌感。</p>
+          <h1>落地页背景</h1>
+          <p>上传图片并调节透明度。</p>
         </section>
 
         {notice && <div className="notice">{notice}</div>}
 
         <section className="admin-layout">
-          <div className="admin-preview">
-            <div className="preview-surface">
-              <div className="preview-copy">
-                <span>ChemPaper Finder</span>
-                <strong>从 DOI、题录或模糊线索找到可信文献</strong>
-                <small>当前透明度 {Math.round(localOpacity * 100)}%</small>
-              </div>
-            </div>
-          </div>
-
           <div className="admin-panel">
             <div className="section-title">
               <h2>背景设置</h2>
@@ -733,6 +914,7 @@ function AdminPage({ user, settings, onSettingsChange }: { config: Config; user:
 function HistoryPage({ config, user }: { config: Config; user: User }) {
   const [items, setItems] = React.useState<HistoryItem[]>([]);
   const [notice, setNotice] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     api<{ items: HistoryItem[] }>("/api/history")
@@ -740,12 +922,15 @@ function HistoryPage({ config, user }: { config: Config; user: User }) {
         setItems(data.items);
         setNotice(data.items.length ? "" : "还没有查询记录。");
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "历史记录加载失败"));
+      .catch((error) => setNotice(error instanceof Error ? error.message : "历史记录加载失败"))
+      .finally(() => setLoading(false));
   }, []);
 
   const deleteRecord = async (id: string) => {
+    if (!window.confirm("确定删除这条查询记录吗？")) return;
     await api(`/api/history/${id}`, { method: "DELETE" });
     setItems((current) => current.filter((item) => item.id !== id));
+    setNotice("查询记录已删除。");
   };
 
   return (
@@ -759,7 +944,22 @@ function HistoryPage({ config, user }: { config: Config; user: User }) {
           </a>
         </div>
         {notice && <div className="notice">{notice}</div>}
+        <section className="stats-grid" aria-label="历史记录统计">
+          <div className="stat-card">
+            <span>查询记录</span>
+            <strong>{items.length}</strong>
+          </div>
+          <div className="stat-card">
+            <span>相似结果</span>
+            <strong>{items.reduce((total, item) => total + item.candidateCount, 0)}</strong>
+          </div>
+          <div className="stat-card">
+            <span>最近更新</span>
+            <strong>{items[0]?.updatedAt ? formatDate(items[0].updatedAt) : "无"}</strong>
+          </div>
+        </section>
         <div className="history-list">
+          {loading && <LoadingSkeleton rows={4} />}
           {items.map((item) => (
             <article className="history-card" key={item.id}>
               <div>
@@ -783,6 +983,7 @@ function HistoryPage({ config, user }: { config: Config; user: User }) {
               </div>
             </article>
           ))}
+          {!loading && !items.length && <EmptyState text="暂无查询记录。" />}
         </div>
       </section>
     </main>
@@ -793,15 +994,18 @@ function HistoryDetailPage({ config, recordId }: { config: Config; user: User; r
   const [record, setRecord] = React.useState<HistoryRecord | null>(null);
   const [selected, setSelected] = React.useState<Candidate | null>(null);
   const [notice, setNotice] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
 
   const load = React.useCallback(() => {
+    setLoading(true);
     api<{ record: HistoryRecord }>(`/api/history/${recordId}`)
       .then((data) => {
         setRecord(data.record);
         setSelected(data.record.candidates[0] ?? null);
         setNotice("");
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "查询详情加载失败"));
+      .catch((error) => setNotice(error instanceof Error ? error.message : "查询详情加载失败"))
+      .finally(() => setLoading(false));
   }, [recordId]);
 
   React.useEffect(() => {
@@ -809,7 +1013,9 @@ function HistoryDetailPage({ config, recordId }: { config: Config; user: User; r
   }, [load]);
 
   const deleteCandidate = async (candidate: Candidate) => {
+    if (!window.confirm("确定删除这个相似结果吗？")) return;
     await api<{ candidates: Candidate[] }>(`/api/history/${recordId}/candidates/${encodeURIComponent(candidate.id)}`, { method: "DELETE" });
+    setNotice("相似结果已删除。");
     load();
   };
 
@@ -828,6 +1034,7 @@ function HistoryDetailPage({ config, recordId }: { config: Config; user: User; r
           </a>
         </div>
         {notice && <div className="notice">{notice}</div>}
+        {loading && <LoadingSkeleton rows={4} />}
         {record && (
           <>
             <section className="history-summary">
@@ -889,7 +1096,7 @@ function HistoryCandidateDetail({ candidate, setNotice }: { candidate: Candidate
   if (!candidate) {
     return (
       <section className="detail-panel">
-        <EmptyState text="选择一个相似结果查看题目、作者、链接和 PDF 文件。" />
+        <EmptyState text="选择相似结果查看详情。" />
       </section>
     );
   }
@@ -938,6 +1145,7 @@ function HistoryCandidateDetail({ candidate, setNotice }: { candidate: Candidate
   const deleteFile = async (kind: "open" | "citation") => {
     const key = kind === "open" ? files.openKey : files.citationKey;
     if (!key) return;
+    if (!window.confirm(kind === "open" ? "确定删除开放 PDF 文件吗？" : "确定删除题录 PDF 文件吗？")) return;
     setBusy(kind === "open" ? "delete-open" : "delete-citation");
     try {
       await api("/api/files", { method: "DELETE", body: { key } });
@@ -1033,7 +1241,7 @@ function ResultCard({ candidate, selected, onSelect }: { candidate: Candidate; s
       </div>
       <p className="reason">{candidate.matchReason}</p>
       <button type="button" className="select-button" onClick={onSelect}>
-        选择此文献
+        选择
         <ArrowRight size={16} />
       </button>
     </article>
@@ -1047,7 +1255,7 @@ function DetailPanel({ candidate, setNotice }: { candidate: Candidate | null; se
   if (!candidate) {
     return (
       <section className="detail-panel">
-        <EmptyState text="选择候选后，可以检查 DOI、OA 状态、复制引用并导出 PDF。" />
+        <EmptyState text="选择候选查看详情。" />
       </section>
     );
   }
@@ -1101,6 +1309,7 @@ function DetailPanel({ candidate, setNotice }: { candidate: Candidate | null; se
   const deleteFile = async (kind: "open" | "citation") => {
     const key = kind === "open" ? files.openKey : files.citationKey;
     if (!key) return;
+    if (!window.confirm(kind === "open" ? "确定删除开放 PDF 文件吗？" : "确定删除题录 PDF 文件吗？")) return;
     setBusy(kind === "open" ? "delete-open" : "delete-citation");
     try {
       await api("/api/files", { method: "DELETE", body: { key } });
@@ -1166,7 +1375,7 @@ function DetailPanel({ candidate, setNotice }: { candidate: Candidate | null; se
           <Copy size={16} /> BibTeX
         </button>
       </div>
-      <p className="compliance"><CheckCircle2 size={15} /> 无开放 PDF 时只导出题录 PDF，不显示“下载全文”。</p>
+      <p className="compliance"><CheckCircle2 size={15} /> 无开放 PDF 时仅导出题录。</p>
     </section>
   );
 }
@@ -1218,6 +1427,20 @@ function EmptyState({ text }: { text: string }) {
     <div className="empty-state">
       <Search size={24} />
       <p>{text}</p>
+    </div>
+  );
+}
+
+function LoadingSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="loading-skeleton" aria-label="正在加载">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div className="skeleton-row" key={index}>
+          <span />
+          <strong />
+          <em />
+        </div>
+      ))}
     </div>
   );
 }
